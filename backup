@@ -1,0 +1,86 @@
+grammar Fenix;
+
+program: statement* EOF;
+
+statement:
+      varDecl//implemented
+    | funcDecl
+    | assignmentStatement
+    | ifStatement//implemented
+    | whileStatement//implemented
+    | forStatement//implemented
+    | returnStatement
+    | breakStatement//implemented
+    | continueStatement//implemented
+    | exprStatement
+    | block
+    ;
+
+varDecl:
+    varDecl_typed ';'
+    | varDecl_auto ';'
+    ;
+
+varDecl_noSemi:
+  varDecl_typed
+   | varDecl_auto
+   ;
+
+varDecl_typed: 'var' ID ':' TYPE ('=' value=expr)?;
+varDecl_auto: 'auto' ID ('=' value=expr)?;
+
+funcDecl: 'func' ID '(' rawArgs? ')' ('->' TYPE)? statement;//todo: parameters should have own type!
+assignmentStatement: ID '=' expr ';';//todo: add arrays
+
+ifStatement: 'if' '(' expr ')' statement ('else' elseSttmt=statement)?; //implemented //todo: add else if
+whileStatement: 'while' '(' expr ')' statement;
+forStatement: 'for' '(' forInit? ';' forCondition? ';' forIncrement? ')' statement;
+forInit: varDecl_noSemi;
+forCondition: expr;
+forIncrement: assignmentExpression;
+
+assignmentExpression: ID '=' expr;
+
+returnStatement: 'return' expr? ';';
+breakStatement: 'break' ';';
+continueStatement: 'continue' ';';
+exprStatement: expr ';';
+block: '{' statement* '}';
+
+expr:
+    '-' expr #Negative
+    | '!' expr #Not//implemented
+    | '(' expr? ')' #Parens//implemented
+    | expr '^' expr #Pow//implemented
+    | expr op=('/' | '*' | '%') expr #MulDiv//implemented
+    | expr op=('+' | '-') expr #AddSub//implemented
+    | expr op=('>' | '>=' | '<=' | '<') expr #Comparsion//implemented
+    | expr op=('==' | '!=') expr #Equality//implemented
+    | expr '&&' expr #And//implemented
+    | expr '||' expr #Or//implemented
+    | expr '~' expr #Xor//implemented
+    | ID '(' args? ')' #Call//implemented
+    //| //todo: arrays here
+    | INT #Int//implemented
+    | FLOAT #Float//implemented
+    | STRING #String//implemented
+    | BOOL #Bool//implemented
+    | ID #Var//implemented
+    | NULL #Null//implemented
+    ;
+
+args: expr (',' expr)?;
+rawArgs: arg (',' arg)?;
+arg: ID ':' TYPE;//a: Int
+
+TYPE: 'Int' | 'String' | 'Float' | 'Bool' | 'Null';
+INT: [0-9]+;
+FLOAT: [0-9]+ '.' [0-9]+;
+STRING: '"' (~["\\] | '\\' .)* '"';
+BOOL: 'true' | 'false';
+NULL: 'null' | 'NULL' | 'NIL' | 'nil';
+ID: [a-zA-Z_] [a-zA-Z0-9_]*;
+
+LINE_COMMENT: '//' ~[\r\n] -> skip;
+BLOCK_COMMENT: '/*' .*? '*/' -> skip;
+WS: [ \t\r\n]+ -> skip;

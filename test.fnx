@@ -1,0 +1,8 @@
+class test {
+    pub func test(a: Int) {
+        println(a);
+    }
+}
+
+var a: Obj = new test();
+a.test(15);
