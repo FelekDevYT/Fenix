@@ -1,8 +1,6 @@
-class test {
-    pub func test(a: Int) {
-        println(a);
-    }
+struct test {
+    var a: Int;
+    func a(a: Int, b: Int) -> Float;
 }
 
 var a: Obj = new test();
-a.test(15);

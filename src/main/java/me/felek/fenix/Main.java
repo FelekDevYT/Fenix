@@ -11,9 +11,15 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                for (var a: Int in 1..10) {
-                    println(a);
+                struct io {
+                    auto LOG_START = "[ LOG ]";
+                    func log(msg: String);
                 }
+                
+                io::log(msg: String) {
+                    println(self.LOG_START + msg);
+                }
+                io.log("hi!");
                 """;
 
         FenixVisitorImpl interpreter = new FenixVisitorImpl();

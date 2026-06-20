@@ -6,5 +6,6 @@ public enum ValueType {
     FLOAT,
     NULL,
     STRING,
-    ARRAY;
+    ARRAY,
+    STRUCT;
 }

@@ -4,7 +4,8 @@ program: statement* EOF;
 
 statement:
       varDecl//implemented
-    | classDecl
+    | structDeclaration
+    | structFunctionDeclaration
     | funcDecl
     | assignmentStatement
     | ifStatement//implemented
@@ -19,6 +20,20 @@ statement:
     | block
     ;
 
+structDeclaration: 'struct' ID '{' structMember* '}';
+
+structMember:
+    varDecl
+    | functionTemplate ';'
+    ;
+
+functionTemplate: FUNC_WORD ID '(' rawArgs? ')' ('->' TYPE)?;
+
+//io::println(a: Int, b: Int) -> Int {
+//     //smth
+//}
+structFunctionDeclaration: ID '::' ID '(' rawArgs? ')' ('->' TYPE)? statement;
+
 varDecl:
     varDecl_typed ';'
     | varDecl_auto ';'
@@ -32,8 +47,8 @@ varDecl_noSemi:
 varDecl_typed: VAR_WORD ID ':' TYPE ('=' value=expr)?;
 varDecl_auto: AUTO_WORD ID ('=' value=expr)?;
 
-funcDecl: FUNC_WORD ID '(' rawArgs? ')' ('->' TYPE)? statement;//todo: parameters should have own type!
-assignmentStatement: (ID | arr=ID '[' expr ']') '=' expr ';';//todo: add arrays
+funcDecl: functionTemplate statement;//todo: parameters should have own type!
+assignmentStatement: (SELF_WORD '.')? (ID | arr=ID '[' expr ']') '=' expr ';';//todo: add arrays
 
 doWhileStatement: DO_WORD statement WHILE_WORD '(' expr ')' ';';
 
@@ -44,7 +59,6 @@ forInit: varDecl_noSemi;
 forCondition: expr;
 forIncrement: expr;
 
-//TODO: do smth with this please :)
 forEachStatement: FOR_WORD '(' varDecl_noSemi IN_WORD expr ')' statement;
 
 returnStatement: RETURN_WORD expr? ';';
@@ -64,15 +78,20 @@ expr:
     | expr op=('+' | '-') expr #AddSub//implemented
     | expr op=('>' | '>=' | '<=' | '<') expr #Comparsion//implemented
     | expr op=('==' | '!=') expr #Equality//implemented
+    | 'new' ID '(' ')' #NewExpr
     | expr '?' expr ':' expr #Ternary
     | expr '&&' expr #And//implemented
     | expr '||' expr #Or//implemented
     | expr '~' expr #Xor//implemented
     | '[' args? ']' #Array
     | ID '[' expr ']' #ArrayAccess
+    //todo: selfMethodCall
+    | SELF_WORD '.' ID #SelfFieldAccess
+    | ID '.' ID '(' args? ')' #StructMemberCall
     | ID '(' args? ')' #Call//implemented
     | expr '..' expr #Range
     //| //todo: arrays here
+    // todo struct field access
     | INT #Int//implemented
     | FLOAT #Float//implemented
     | STRING #String//implemented
@@ -93,8 +112,11 @@ WHILE_WORD: 'while'; DO_WORD: 'do';
 IF_WORD: 'if'; ELSE_WORD: 'else';
 VAR_WORD: 'var'; AUTO_WORD: 'auto';
 FUNC_WORD: 'func';
+SELF_WORD: 'self';
 
-TYPE: ('Int' | 'String' | 'Float' | 'Bool' | 'Null') ('[' ']')*;
+MODIFIER: 'pub' | 'static' | 'sec';//todo: add this
+
+TYPE: ('Int' | 'String' | 'Float' | 'Bool' | 'Null' | 'Obj') ('[' ']')*;
 
 INT: [0-9]+;
 FLOAT: [0-9]+ '.' [0-9]+;

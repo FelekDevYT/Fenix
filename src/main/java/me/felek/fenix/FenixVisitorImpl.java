@@ -8,6 +8,7 @@ import me.felek.fenix.exceptions.handled.ContinueException;
 import me.felek.fenix.exceptions.handled.ReturnException;
 import me.felek.fenix.func.RawArg;
 import me.felek.fenix.func.FenixFunction;
+import me.felek.fenix.struct.Struct;
 import me.felek.fenix.type.Value;
 import me.felek.fenix.type.ValueType;
 import me.felek.fenix.type.impl.*;
@@ -17,6 +18,7 @@ import me.felek.fenix.utils.TypeUtils;
 import me.felek.fenix.utils.ValueUtils;
 import me.felek.fenix.variable.Environment;
 
+import java.lang.reflect.Member;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -207,6 +209,15 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     }
 
     @Override
+    public Value visitVarDecl(FenixParser.VarDeclContext ctx) {
+        if (ctx.varDecl_typed() != null) {
+            return visit(ctx.varDecl_typed());
+        } else {
+            return visit(ctx.varDecl_auto());
+        }
+    }
+
+    @Override
     public Value visitVarDecl_typed(FenixParser.VarDecl_typedContext ctx) {
         ValueType type = TypeUtils.getTypeFromString(ctx.TYPE().getText().replace("[]", ""));
         String varName = ctx.ID().getText();
@@ -318,17 +329,50 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     @Override
     public Value visitAssignmentStatement(FenixParser.AssignmentStatementContext ctx) {
         String varName = ctx.ID().getText();
-        Value value = visit(ctx.expr().get(1));
+        Value value = new NullValue();
 
         if (ctx.arr != null) {
             varName = ctx.arr.getText();
             int i = visit(ctx.expr(0)).asInt();
+            value = visit(ctx.expr(1));
 
             env.assignArray(varName, i, value);
+            return value;
+        } else {
+            value = visit(ctx.expr(0));
+        }
+
+        if (ctx.SELF_WORD() != null) {
+            Value self = env.get(varName);
+            if (self == null || !(self instanceof SelfValue)) {
+                throw new RuntimeException("self outside of a struct context.");
+            }
+
+            Struct s = ((SelfValue) self).getSelf();
+            s.getVariables().put(varName, value);
             return value;
         }
 
         env.assign(varName, value);
+        return value;
+    }
+
+    @Override
+    public Value visitSelfFieldAccess(FenixParser.SelfFieldAccessContext ctx) {
+        String varName = ctx.ID().getText();
+
+        Value self = env.get("self");
+        if (self == null | !(self instanceof SelfValue)) {
+            throw new RuntimeException("self outside of a struct.");
+        }
+
+        Struct s = ((SelfValue) self).getSelf();
+        Value value = s.getVariables().get(varName);
+
+        if (value == null) {
+            throw new FenixVariableNotDefinedException(varName);
+        }
+
         return value;
     }
 
@@ -397,13 +441,13 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
     @Override
     public Value visitFuncDecl(FenixParser.FuncDeclContext ctx) {
-        String name = ctx.ID().getText();
-        FenixParser.RawArgsContext rawArgs = ctx.rawArgs();
+        String name = ctx.functionTemplate().ID().getText();
+        FenixParser.RawArgsContext rawArgs = ctx.functionTemplate().rawArgs();
         //todo: add return value here please
         FenixParser.StatementContext block = ctx.statement();
         ValueType returnType = ValueType.NULL;
-        if (ctx.TYPE() != null) {
-            returnType = TypeUtils.getTypeFromString(ctx.TYPE().getText());
+        if (ctx.functionTemplate().TYPE() != null) {
+            returnType = TypeUtils.getTypeFromString(ctx.functionTemplate().TYPE().getText());
         }
 
         List<RawArg> arguments = new ArrayList<>();
@@ -534,5 +578,131 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         IntStream.rangeClosed(v1, v2).forEach((el) -> valueArray.add(new IntValue(el)));
 
         return new ArrayValue(valueArray);
+    }
+
+    @Override
+    public Value visitStructDeclaration(FenixParser.StructDeclarationContext ctx) {
+        String name = ctx.ID().getText();
+        if (env.structureExistsInLocalScope(name)) {
+            throw new RuntimeException();//todo: exception
+        }
+
+        Struct struct = new Struct(name, env);
+        List<FenixParser.StructMemberContext> memberContexts = ctx.structMember();
+        Environment prevEnv = env;
+        Environment tempEnv = new Environment(env);
+        env = tempEnv;
+
+        try {
+            for (var member : memberContexts) {
+                if (member.varDecl() != null) {
+                    String varName;
+                    if (member.varDecl().varDecl_auto() != null) {
+                        varName = member.varDecl().varDecl_auto().ID().getText();
+                    } else {
+                        varName = member.varDecl().varDecl_typed().ID().getText();
+                    }
+
+                    Value value = visit(member.varDecl());
+
+                    struct.getVariables().put(varName, value);
+                } else {
+                    String functionName = member.functionTemplate().ID().getText();
+
+                    List<RawArg> arguments = new ArrayList<>();
+                    for (var arg : member.functionTemplate().rawArgs().arg()) {
+                        arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+                    }
+
+                    ValueType type = ValueType.NULL;
+                    if (member.functionTemplate().TYPE() != null) {
+                        type = TypeUtils.getTypeFromString(member.functionTemplate().TYPE().getText());
+                    }
+
+                    FenixFunction function = new FenixFunction(functionName, arguments, null, type);
+                    struct.getFunctions().put(functionName, function);
+                }
+            }
+        } finally {
+            env = prevEnv;
+        }
+
+        env.defineStruct(name, struct);
+
+        return new NullValue();
+    }
+
+    @Override
+    public Value visitStructFunctionDeclaration(FenixParser.StructFunctionDeclarationContext ctx) {
+        String structID = ctx.ID(0).getText();
+        String funcID = ctx.ID(1).getText();
+
+        Struct struct = env.getStruct(structID);
+
+        if (struct.getFunctions().containsKey(funcID) && struct.getFunctions().get(funcID).getBody() != null) {
+            throw new RuntimeException("Function " + funcID + " already defined in struct " + structID);
+        }
+
+        List<RawArg> arguments = new ArrayList<>();
+        for (var arg : ctx.rawArgs().arg()) {
+            arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+        }
+
+        ValueType type = ValueType.NULL;
+        if (ctx.TYPE() != null) {
+            type = TypeUtils.getTypeFromString(ctx.TYPE().getText());
+        }
+
+        FenixFunction func = new FenixFunction(funcID, arguments, ctx.statement(), type);
+        struct.getFunctions().put(funcID, func);
+
+        return new NullValue();
+    }
+
+    @Override
+    public Value visitStructMemberCall(FenixParser.StructMemberCallContext ctx) {
+        Environment previousEnv = env;
+        String structID = ctx.ID(0).getText();
+        String funcID = ctx.ID(1).getText();
+
+        if (!env.structureExistsInLocalScope(structID) || !env.getStruct(structID).getFunctions().containsKey(funcID)) {
+            throw new RuntimeException();//todo: exception
+        }
+
+        FenixFunction function = env.getStruct(structID).getFunctions().get(funcID);
+        List<Value> values = new ArrayList<>();
+        for (FenixParser.ExprContext arg : ctx.args().expr()) {
+            values.add(visit(arg));
+        }
+
+        if (values.size() != function.getArgs().size()) {
+            throw new RuntimeException();//todo: error
+        }
+
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i).getType() != function.getArgs().get(i).type()) {
+                throw new RuntimeException();//todo: error
+            }
+        }
+
+        Environment fnEnv = new Environment(env);
+        for (int i = 0; i < values.size(); i++) {
+            fnEnv.define(function.getArgs().get(i).name(), values.get(i));
+        }
+        fnEnv.define("self", new SelfValue(env.getStruct(structID)));
+
+        env = fnEnv;
+        try {
+            visit(function.getBody());
+        } catch (ReturnException exc) {
+            if (exc.getReturned().getType() != function.getReturnType()) {
+                throw new RuntimeException();//todo: error
+            }
+            return exc.getReturned();
+        } finally {
+            env = previousEnv;
+        }
+
+        return new NullValue();
     }
 }

@@ -108,6 +108,9 @@ public class ValueUtils {
             case FLOAT -> {
                 return new FloatValue(value1.asFloat() + value2.asFloat());
             }
+            case STRING -> {
+                return new StringValue(value1.asString() + value2.asString());
+            }
             default -> {//String: "abc"*3, true*true=true&&true
                 throw new FenixTypeException();
             }

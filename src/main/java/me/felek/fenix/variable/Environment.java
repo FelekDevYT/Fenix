@@ -1,8 +1,10 @@
 package me.felek.fenix.variable;
 
+import me.felek.fenix.exceptions.FenixStructureDoesNotExistsException;
 import me.felek.fenix.exceptions.FenixVariableAlreadyDefinedException;
 import me.felek.fenix.exceptions.FenixVariableNotDefinedException;
 import me.felek.fenix.func.FenixFunction;
+import me.felek.fenix.struct.Struct;
 import me.felek.fenix.type.Value;
 import me.felek.fenix.type.impl.ArrayValue;
 
@@ -12,6 +14,7 @@ import java.util.Map;
 public class Environment {
     private Map<String, Value> localVariables = new HashMap<>();
     private Map<String, FenixFunction> functions = new HashMap<>();
+    private Map<String, Struct> structs = new HashMap<>();
     private Environment parent;
 
     public Environment() {
@@ -30,6 +33,28 @@ public class Environment {
             return parent.get(name);
         }
         throw new FenixVariableNotDefinedException(name);
+    }
+
+    public Struct getStruct(String name) {
+        if (structs.containsKey(name)) {
+            return structs.get(name);
+        }
+        if (parent != null) {
+            return parent.getStruct(name);
+        }
+        throw new FenixStructureDoesNotExistsException(name);
+    }
+
+    public boolean structureExistsInLocalScope(String name) {
+        return structs.containsKey(name);
+    }
+
+    public void defineStruct(String name, Struct structure) {
+        if (structs.containsKey(name)) {
+            throw new RuntimeException();//todo: exception
+        }
+
+        structs.put(name, structure);
     }
 
     public void assign(String name, Value value) {

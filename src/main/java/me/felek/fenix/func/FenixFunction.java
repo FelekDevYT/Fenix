@@ -9,7 +9,12 @@ import java.util.List;
 public class FenixFunction {
     private final String name;
     private final List<RawArg> rawArgs;
-    private final FenixParser.StatementContext body;
+
+    public void setBody(FenixParser.StatementContext body) {
+        this.body = body;
+    }
+
+    private FenixParser.StatementContext body;
     private Environment env;
     private final ValueType returnType;
 
