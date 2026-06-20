@@ -1,26 +1,29 @@
 package me.felek.fenix;
 
 import me.felek.fenix.error.FenixErrorListener;
+import me.felek.fenix.struct.Modifier;
+import me.felek.fenix.utils.TypeUtils;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
+import java.util.List;
 import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                var a: Int = 4;
-                if (a == 1) {
-                    println("yes");
-                } elif (a == 0) {
-                    println("yep");
-                } elif (a == 2) {
-                    println("yea");
-                } else {
-                    println("no");
+                struct io {
+                    pub func writeln(msg: String);
                 }
+                io::writeln(msg: String) {
+                    println(msg);
+                }
+                
+                auto object = new io();
+                object.writeln("hi!");
+                io.writeln("...");
                 """;
 
         FenixVisitorImpl interpreter = new FenixVisitorImpl();

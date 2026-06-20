@@ -24,7 +24,7 @@ structDeclaration: STRUCT_WORD ID '{' structMember* '}';
 
 structMember:
     varDecl
-    | functionTemplate ';'
+    | MODIFIER* functionTemplate ';'
     ;
 
 functionTemplate: FUNC_WORD ID '(' rawArgs? ')' ('->' TYPE)?;
@@ -87,10 +87,9 @@ expr:
     | ID '[' expr ']' #ArrayAccess
     //todo: selfMethodCall
     | SELF_WORD '.' ID #SelfFieldAccess
-    | ID '.' ID '(' args? ')' #StructMemberCall
+    | ID '.' ID '(' args? ')' #StructMemberCallAndObjectFunctionCall
     | ID '(' args? ')' #Call//implemented
     | expr '..' expr #Range
-    //| //todo: arrays here
     // todo struct field access
     | INT #Int//implemented
     | FLOAT #Float//implemented
@@ -102,7 +101,7 @@ expr:
 
 args: expr (',' expr)*;
 rawArgs: arg (',' arg)*;
-arg: ID ':' TYPE;//a: Int
+arg: ID ':' TYPE;//a: Int       q
 
 RETURN_WORD: 'return';
 BREAK_WORD: 'break';
@@ -114,7 +113,7 @@ VAR_WORD: 'var'; AUTO_WORD: 'auto';
 FUNC_WORD: 'func';
 SELF_WORD: 'self'; STRUCT_WORD: 'struct';
 
-MODIFIER: 'pub' | 'static' | 'sec';//todo: add this
+MODIFIER: 'pub' | 'static' | 'loc';//todo: add this
 
 TYPE: ('Int' | 'String' | 'Float' | 'Bool' | 'Null' | 'Obj') ('[' ']')*;
 

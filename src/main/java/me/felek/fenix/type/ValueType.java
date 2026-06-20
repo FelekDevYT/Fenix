@@ -7,5 +7,6 @@ public enum ValueType {
     NULL,
     STRING,
     ARRAY,
-    STRUCT;
+    STRUCT,
+    OBJECT;
 }

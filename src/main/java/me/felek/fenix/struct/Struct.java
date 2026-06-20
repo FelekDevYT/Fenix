@@ -38,4 +38,9 @@ public class Struct {
     public Map<String, Value> getVariables() {
         return variables;
     }
+
+    @Override
+    public String toString() {
+        return functions.toString();
+    }
 }

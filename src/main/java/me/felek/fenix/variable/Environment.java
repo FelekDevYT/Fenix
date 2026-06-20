@@ -48,6 +48,9 @@ public class Environment {
     public boolean structureExistsInLocalScope(String name) {
         return structs.containsKey(name);
     }
+    public boolean variableExistsInLocalScope(String name) {
+        return localVariables.containsKey(name);
+    }
 
     public void defineStruct(String name, Struct structure) {
         if (structs.containsKey(name)) {
@@ -100,6 +103,7 @@ public class Environment {
         return "Environment{" +
                 "localVariables=" + localVariables +
                 ", functions=" + functions +
+                ", structs=" + structs +
                 ", parent=" + parent +
                 '}';
     }

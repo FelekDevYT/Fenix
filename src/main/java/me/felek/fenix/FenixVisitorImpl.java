@@ -1,6 +1,8 @@
 package me.felek.fenix;
 
+import me.felek.fenix.exceptions.FenixAccessException;
 import me.felek.fenix.exceptions.FenixInvalidVariableTypeException;
+import me.felek.fenix.exceptions.FenixStructureDoesNotExistsException;
 import me.felek.fenix.exceptions.FenixTypeException;
 import me.felek.fenix.exceptions.FenixVariableNotDefinedException;
 import me.felek.fenix.exceptions.handled.BreakException;
@@ -8,6 +10,7 @@ import me.felek.fenix.exceptions.handled.ContinueException;
 import me.felek.fenix.exceptions.handled.ReturnException;
 import me.felek.fenix.func.RawArg;
 import me.felek.fenix.func.FenixFunction;
+import me.felek.fenix.struct.Modifier;
 import me.felek.fenix.struct.Struct;
 import me.felek.fenix.type.Value;
 import me.felek.fenix.type.ValueType;
@@ -22,6 +25,7 @@ import java.lang.reflect.Member;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -628,7 +632,13 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
                         type = TypeUtils.getTypeFromString(member.functionTemplate().TYPE().getText());
                     }
 
+                    List<Modifier> modifiers = new ArrayList<>();
+                    if (member.MODIFIER() != null) {
+                        modifiers = TypeUtils.parseModifiers(member.MODIFIER());
+                    }
+
                     FenixFunction function = new FenixFunction(functionName, arguments, null, type);
+                    function.setFunctionModifiers(modifiers);
                     struct.getFunctions().put(functionName, function);
                 }
             }
@@ -662,23 +672,84 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             type = TypeUtils.getTypeFromString(ctx.TYPE().getText());
         }
 
+        List<Modifier> modifiers = struct.getFunctions().get(funcID).getFunctionModifiers();
+
         FenixFunction func = new FenixFunction(funcID, arguments, ctx.statement(), type);
+        func.setFunctionModifiers(modifiers);
         struct.getFunctions().put(funcID, func);
 
         return new NullValue();
     }
 
     @Override
-    public Value visitStructMemberCall(FenixParser.StructMemberCallContext ctx) {
+    public Value visitStructMemberCallAndObjectFunctionCall(FenixParser.StructMemberCallAndObjectFunctionCallContext ctx) {
         Environment previousEnv = env;
-        String structID = ctx.ID(0).getText();
+        String SVID = ctx.ID(0).getText();//structure/variable ID
         String funcID = ctx.ID(1).getText();
 
-        if (!env.structureExistsInLocalScope(structID) || !env.getStruct(structID).getFunctions().containsKey(funcID)) {
+        if (env.variableExistsInLocalScope(SVID)) {
+            //then its: structName.function(a, b, c....);
+            //TODO: std here
+
+            if (env.get(SVID).getType() != ValueType.OBJECT) {
+                throw new FenixTypeException();
+            }
+
+            ObjectValue obj = (ObjectValue) env.get(SVID);
+            if (!obj.getObject().getFunctions().containsKey(funcID)) {
+                throw new RuntimeException();//todo: fenixfunctionnotfoundexception
+            }
+
+            FenixFunction function = obj.getObject().getFunctions().get(funcID);
+            if (new HashSet<>(function.getFunctionModifiers()).contains(Modifier.LOC)) {
+                throw new FenixAccessException(funcID);
+            }
+
+            List<Value> values = new ArrayList<>();
+            for (FenixParser.ExprContext arg : ctx.args().expr()) {
+                values.add(visit(arg));
+            }
+
+            if (values.size() != function.getArgs().size()) {
+                throw new RuntimeException();//todo: error
+            }
+
+            for (int i = 0; i < values.size(); i++) {
+                if (values.get(i).getType() != function.getArgs().get(i).type()) {
+                    throw new RuntimeException();//todo: error
+                }
+            }
+
+            Environment fnEnv = new Environment(env);
+            for (int i = 0; i < values.size(); i++) {
+                fnEnv.define(function.getArgs().get(i).name(), values.get(i));
+            }
+            fnEnv.define("self", new SelfValue(((ObjectValue) env.get(SVID)).getObject()));
+
+            env = fnEnv;
+            try {
+                visit(function.getBody());
+            } catch (ReturnException exc) {
+                if (exc.getReturned().getType() != function.getReturnType()) {
+                    throw new RuntimeException();//todo: error
+                }
+                return exc.getReturned();
+            } finally {
+                env = previousEnv;
+            }
+
+            return new NullValue();
+        }
+
+        if (!env.structureExistsInLocalScope(SVID) || !env.getStruct(SVID).getFunctions().containsKey(funcID)) {
             throw new RuntimeException();//todo: exception
         }
 
-        FenixFunction function = env.getStruct(structID).getFunctions().get(funcID);
+        FenixFunction function = env.getStruct(SVID).getFunctions().get(funcID);
+        if (!new HashSet<>(function.getFunctionModifiers()).containsAll(List.of(Modifier.PUB, Modifier.STATIC))) {
+            throw new FenixAccessException(funcID);
+        }
+
         List<Value> values = new ArrayList<>();
         for (FenixParser.ExprContext arg : ctx.args().expr()) {
             values.add(visit(arg));
@@ -698,7 +769,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         for (int i = 0; i < values.size(); i++) {
             fnEnv.define(function.getArgs().get(i).name(), values.get(i));
         }
-        fnEnv.define("self", new SelfValue(env.getStruct(structID)));
+        fnEnv.define("self", new SelfValue(env.getStruct(SVID)));
 
         env = fnEnv;
         try {
@@ -713,5 +784,18 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         }
 
         return new NullValue();
+    }
+
+    @Override
+    public Value visitNewExpr(FenixParser.NewExprContext ctx) {
+        String structName = ctx.ID().getText();
+        if (!env.structureExistsInLocalScope(structName)) {
+            throw new FenixStructureDoesNotExistsException(structName);
+        }
+
+        Struct s = env.getStruct(structName);
+        ObjectValue obj = new ObjectValue(s);
+
+        return obj;
     }
 }
