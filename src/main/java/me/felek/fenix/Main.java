@@ -1,6 +1,7 @@
 package me.felek.fenix;
 
 import me.felek.fenix.error.FenixErrorListener;
+import me.felek.fenix.preprocessor.Preprocessor;
 import me.felek.fenix.struct.Modifier;
 import me.felek.fenix.utils.TypeUtils;
 import org.antlr.v4.runtime.CharStream;
@@ -14,15 +15,16 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                auto a = "a b c d e f g h";
-                println(a.split(" "));
+                #define LOL 5
+                println(LOL);
                 """;
+        String preprocessed = Preprocessor.preprocess(sourceCode);
 
         FenixVisitorImpl interpreter = new FenixVisitorImpl();
-        FenixLexer lexer = new FenixLexer(CharStreams.fromString(sourceCode));
+        FenixLexer lexer = new FenixLexer(CharStreams.fromString(preprocessed));
         FenixParser parser = new FenixParser(new CommonTokenStream(lexer));
 
-//        FenixErrorListener errorListener = new FenixErrorListener(sourceCode);
+//        FenixErrorListener errorListener = new FenixErrorListener(preprocessed);
 //        lexer.removeErrorListeners();
 //        lexer.addErrorListener(errorListener);
 //        parser.removeErrorListeners();
