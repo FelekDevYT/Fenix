@@ -279,13 +279,22 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
     @Override
     public Value visitIfStatement(FenixParser.IfStatementContext ctx) {
-        Value value = visit(ctx.expr());
+        Value value = visit(ctx.expr(0));
         FenixParser.StatementContext statement = ctx.statement(0);
         FenixParser.StatementContext elseSttmt = ctx.elseSttmt;
 
         if (value.asBool()) {
             visit(statement);
-        } else if (elseSttmt != null) {
+        } else {
+            if (ctx.ELIF_WORD() != null) {
+                for (int i = 1; i < ctx.expr().size(); i++) {
+                    if (visit(ctx.expr(i)).asBool()) {
+                        visit(ctx.statement(i));
+                        return new NullValue();
+                    }
+                }
+            }
+
             visit(elseSttmt);
         }
 

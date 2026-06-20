@@ -20,7 +20,7 @@ statement:
     | block
     ;
 
-structDeclaration: 'struct' ID '{' structMember* '}';
+structDeclaration: STRUCT_WORD ID '{' structMember* '}';
 
 structMember:
     varDecl
@@ -52,7 +52,7 @@ assignmentStatement: (SELF_WORD '.')? (ID | arr=ID '[' expr ']') '=' expr ';';//
 
 doWhileStatement: DO_WORD statement WHILE_WORD '(' expr ')' ';';
 
-ifStatement: IF_WORD '(' expr ')' statement (ELSE_WORD elseSttmt=statement)?; //implemented //todo: add else if
+ifStatement: IF_WORD '(' expr ')' statement (ELIF_WORD '(' expr ')' statement)* (ELSE_WORD elseSttmt=statement)?; //implemented //todo: add else if
 whileStatement: WHILE_WORD '(' expr ')' statement;
 forStatement: FOR_WORD '(' forInit? ';' forCondition? ';' forIncrement? ')' statement;
 forInit: varDecl_noSemi;
@@ -109,10 +109,10 @@ BREAK_WORD: 'break';
 CONTINUE_WORD: 'continue';
 FOR_WORD: 'for'; IN_WORD: 'in';
 WHILE_WORD: 'while'; DO_WORD: 'do';
-IF_WORD: 'if'; ELSE_WORD: 'else';
+IF_WORD: 'if'; ELSE_WORD: 'else'; ELIF_WORD: 'elif';
 VAR_WORD: 'var'; AUTO_WORD: 'auto';
 FUNC_WORD: 'func';
-SELF_WORD: 'self';
+SELF_WORD: 'self'; STRUCT_WORD: 'struct';
 
 MODIFIER: 'pub' | 'static' | 'sec';//todo: add this
 

@@ -11,15 +11,16 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                struct io {
-                    auto LOG_START = "[ LOG ]";
-                    func log(msg: String);
+                var a: Int = 4;
+                if (a == 1) {
+                    println("yes");
+                } elif (a == 0) {
+                    println("yep");
+                } elif (a == 2) {
+                    println("yea");
+                } else {
+                    println("no");
                 }
-                
-                io::log(msg: String) {
-                    println(self.LOG_START + msg);
-                }
-                io.log("hi!");
                 """;
 
         FenixVisitorImpl interpreter = new FenixVisitorImpl();
