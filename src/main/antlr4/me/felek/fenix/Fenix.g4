@@ -119,11 +119,11 @@ TYPE: ('Int' | 'String' | 'Float' | 'Bool' | 'Null' | 'Obj') ('[' ']')*;
 
 INT: [0-9]+;
 FLOAT: [0-9]+ '.' [0-9]+;
-STRING: '"' (~["\\] | '\\' .)* '"';
+STRING: '"' (~["\\"] | '\\' .)* '"' | '"""' ('"'? ~["\\"] | '\\' .)* '"""';
 BOOL: 'true' | 'false';
 NULL: 'null' | 'NULL' | 'NIL' | 'nil';
 ID: [a-zA-Z_] [a-zA-Z0-9_]*;
 
-LINE_COMMENT: '//' ~[\r\n] -> skip;
+LINE_COMMENT: '//' ~[\r\n]* -> skip;
 BLOCK_COMMENT: '/*' .*? '*/' -> skip;
 WS: [ \t\r\n]+ -> skip;

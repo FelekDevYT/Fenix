@@ -130,7 +130,15 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
     @Override
     public Value visitString(FenixParser.StringContext ctx) {
-        return new StringValue(ctx.STRING().getText().substring(1, ctx.STRING().getText().length()-1));
+        String raw = ctx.STRING().getText();
+
+        String content;
+        if (raw.startsWith("\"\"\"")) {
+            content = raw.substring(3, raw.length() - 3);
+        } else {
+            content = raw.substring(1, raw.length() - 1);
+        }
+        return new StringValue(content);
     }
 
     @Override

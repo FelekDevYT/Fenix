@@ -15,8 +15,11 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                #define LOL 5
-                println(LOL);
+                println(\"""
+                hello
+                world
+                !
+                \""");
                 """;
         String preprocessed = Preprocessor.preprocess(sourceCode);
 
