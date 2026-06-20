@@ -19,6 +19,10 @@ public class ArrayValue extends Value {
         this.array = new ArrayList<>(array);
     }
 
+    public ArrayValue(Value[] array) {
+        this.array = Arrays.asList(array);
+    }
+
     public List<Value> getArray() {
         return array;
     }

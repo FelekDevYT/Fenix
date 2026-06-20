@@ -14,6 +14,8 @@ import me.felek.fenix.struct.Modifier;
 import me.felek.fenix.struct.Struct;
 import me.felek.fenix.type.Value;
 import me.felek.fenix.type.ValueType;
+import me.felek.fenix.type.dot.DotFunctionExecutor;
+import me.felek.fenix.type.dot.DotOutput;
 import me.felek.fenix.type.impl.*;
 import me.felek.fenix.utils.ComparisonUtils;
 import me.felek.fenix.utils.LogicalUtils;
@@ -689,7 +691,15 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
         if (env.variableExistsInLocalScope(SVID)) {
             //then its: structName.function(a, b, c....);
-            //TODO: std here
+            List<Value> values = new ArrayList<>();
+            for (FenixParser.ExprContext arg : ctx.args().expr()) {
+                values.add(visit(arg));
+            }
+
+            DotOutput out = DotFunctionExecutor.execute(env.get(SVID), funcID, values);
+            if (out.isExecuted()) {
+                return out.value();
+            }
 
             if (env.get(SVID).getType() != ValueType.OBJECT) {
                 throw new FenixTypeException();
@@ -703,11 +713,6 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             FenixFunction function = obj.getObject().getFunctions().get(funcID);
             if (new HashSet<>(function.getFunctionModifiers()).contains(Modifier.LOC)) {
                 throw new FenixAccessException(funcID);
-            }
-
-            List<Value> values = new ArrayList<>();
-            for (FenixParser.ExprContext arg : ctx.args().expr()) {
-                values.add(visit(arg));
             }
 
             if (values.size() != function.getArgs().size()) {

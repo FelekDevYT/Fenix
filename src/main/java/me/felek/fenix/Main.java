@@ -14,16 +14,8 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                struct io {
-                    pub func writeln(msg: String);
-                }
-                io::writeln(msg: String) {
-                    println(msg);
-                }
-                
-                auto object = new io();
-                object.writeln("hi!");
-                io.writeln("...");
+                auto a = "a b c d e f g h";
+                println(a.split(" "));
                 """;
 
         FenixVisitorImpl interpreter = new FenixVisitorImpl();
