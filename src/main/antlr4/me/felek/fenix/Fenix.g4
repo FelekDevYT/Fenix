@@ -48,8 +48,7 @@ varDecl_typed: VAR_WORD ID ':' TYPE ('=' value=expr)?;
 varDecl_auto: AUTO_WORD ID ('=' value=expr)?;
 
 funcDecl: functionTemplate statement;//todo: parameters should have own type!
-assignmentStatement: (SELF_WORD '.')? (ID | arrayAccessHelper) '=' expr ';';
-arrayAccessHelper: arr=ID ('[' expr ']')*;
+assignmentStatement: expr '=' expr ';';
 
 doWhileStatement: DO_WORD statement WHILE_WORD '(' expr ')' ';';
 
@@ -91,10 +90,14 @@ expr:
     | expr '~' expr #Xor//implemented
     | expr IS_WORD TYPE #Is
     | '[' args? ']' #Array
-    | ID ('[' expr ']')+ #ArrayAccess
-    //todo: selfMethodCall
-    | SELF_WORD '.' ID #SelfFieldAccess
-    | ID '.' ID '(' args? ')' #StructMemberCallAndObjectFunctionCall
+    //REMOVED
+//    | ID ('[' expr ']')+ #ArrayAccess
+//    //todo: selfMethodCall
+//    | SELF_WORD '.' ID #SelfFieldAccess
+//    | ID '.' ID '(' args? ')' #StructMemberCallAndObjectFunctionCall
+    | expr '.' ID #FieldAccess
+    | expr '.' ID '(' args? ')' #MethodCall
+    | expr '[' expr ']' #IndexAccess
     | ID '(' args? ')' #Call//implemented
     | expr '..' expr (step='..' expr) #Range
     // todo struct field access

@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
@@ -41,7 +42,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
     @Override
     public Value visitParens(FenixParser.ParensContext ctx) {
-        return super.visitParens(ctx);
+        return visit(ctx.expr());
     }
 
     @Override
@@ -161,36 +162,6 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitArrayAccess(FenixParser.ArrayAccessContext ctx) {
-        String name = ctx.ID().getText();
-        Value rawArray = env.get(name);
-
-        if (rawArray == null) {
-            throw new FenixVariableNotDefinedException(name);
-        }
-
-        Value currentArray = rawArray;
-        for (FenixParser.ExprContext exprCtx : ctx.expr()) {
-            Value indexValue = visit(exprCtx);
-            if (indexValue.getType() != ValueType.INT) {
-                throw new FenixTypeException();
-            }
-            int index = indexValue.asInt();
-
-            if (!(currentArray instanceof ArrayValue)) {
-                throw new FenixTypeException();
-            }
-            ArrayValue array = (ArrayValue) currentArray;
-            if (index < 0 || array.getRawArray().size() <= index) {
-                throw new RuntimeException("index of bouns exception");//todo: exception
-            }
-            currentArray = array.get(index);
-        }
-
-        return currentArray;
-    }
-
-    @Override
     public Value visitCall(FenixParser.CallContext ctx) {
         Environment previousEnv = env;
 
@@ -274,16 +245,12 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             }
 
             ArrayValue array = new ArrayValue(new ArrayList<>());
-            //todo: ADD TO AUTO
-            if (ctx.value == null) {
-                return array;
+            if (ctx.value != null) {
+                Value val = visit(ctx.value);
+                if (val.getType() == ValueType.ARRAY) {
+                    array.merge((ArrayValue) val);
+                }
             }
-
-            Value val = visit(ctx.value);
-            if (val.getType() == ValueType.ARRAY) {
-                array.merge((ArrayValue) val);
-            }
-
             env.define(varName, array);
 
             return array;
@@ -323,7 +290,9 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
                 }
             }
 
-            visit(elseSttmt);
+            if (elseSttmt != null) {
+                visit(elseSttmt);
+            }
         }
 
         return new NullValue();
@@ -365,92 +334,57 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
     @Override
     public Value visitAssignmentStatement(FenixParser.AssignmentStatementContext ctx) {
-        String varName = ctx.ID().getText();
-        boolean isArray = ctx.arrayAccessHelper() != null;
+        FenixParser.ExprContext left = ctx.expr(0);
+        Value right = visit(ctx.expr(1));
 
-        if (isArray) {
-            varName = ctx.arrayAccessHelper().arr.getText();
+        if (left instanceof FenixParser.VarContext) {
+            String varName = ((FenixParser.VarContext) left).ID().getText();
+            env.assign(varName, right);
+            return right;
         }
 
-        Value value = visit(ctx.expr());
+        if (left instanceof FenixParser.FieldAccessContext) {
+            FenixParser.FieldAccessContext fieldAccessContext = (FenixParser.FieldAccessContext) left;
+            Value value = visit(fieldAccessContext.expr());
+            String fieldName = fieldAccessContext.ID().getText();
 
-        if (isArray) {
-            List<FenixParser.ExprContext> exprs = ctx.arrayAccessHelper().expr();
-
-            Value rawArray = null;
-            if (ctx.SELF_WORD() != null) {
-                Value self = env.get("self");
-                if (self == null || !(self instanceof SelfValue)) {
-                    throw new RuntimeException("Self outside a struct.");
-                }
-
-                ((SelfValue) self).getSelf().getVariables().get(varName);
-            } else {
-                rawArray = env.get(varName);
+            if (value instanceof ObjectValue) {
+                ((ObjectValue) value).getObject().getVariables().put(fieldName, right);
+                return right;
             }
 
-            if (rawArray == null) {
-                throw new FenixVariableNotDefinedException(varName);
+            if (value instanceof SelfValue) {
+                ((SelfValue) value).getSelf().getVariables().put(fieldName, right);
+                return right;
             }
 
-            Value currentArray = rawArray;
-            for (int i = 0; i < exprs.size()-1; i++) {
-                int idx = visit(exprs.get(i)).asInt();
-                if (!(currentArray instanceof ArrayValue)) {
-                    throw new RuntimeException();//todo: exception
-                }
-                ArrayValue arr = (ArrayValue) currentArray;
-                if (idx < 0 || arr.getRawArray().size() <= idx) {
-                    throw new RuntimeException("Index out of bounds");
-                }
-                currentArray = arr.get(idx);
-            }
-
-            int lastIdx = visit(exprs.get(exprs.size() - 1)).asInt();
-            if (!(currentArray instanceof ArrayValue)) {
-                throw new RuntimeException();//todo: exception
-            }
-            ArrayValue arr = (ArrayValue) currentArray;
-            if (lastIdx < 0 || arr.getRawArray().size() <= lastIdx) {
-                throw new RuntimeException("index out of bounds");//todo: excpetion
-            }
-
-            arr.getRawArray().set(lastIdx, value);
-            return value;
+            throw new FenixTypeException();
         }
 
-        if (ctx.SELF_WORD() != null) {
-            Value self = env.get(varName);
-            if (self == null || !(self instanceof SelfValue)) {
-                throw new RuntimeException("self outside of a struct context.");
+        if (left instanceof FenixParser.IndexAccessContext) {
+            FenixParser.IndexAccessContext indexAccess = (FenixParser.IndexAccessContext) left;
+            Value array = visit(indexAccess.expr(0));
+            Value indexValue = visit(indexAccess.expr(1));
+
+            if (indexValue.getType() != ValueType.INT) {
+                throw new FenixTypeException();
+            }
+            int idx = indexValue.asInt();
+
+            if (!(array instanceof ArrayValue)) {
+                throw new FenixTypeException();
             }
 
-            Struct s = ((SelfValue) self).getSelf();
-            s.getVariables().put(varName, value);
-            return value;
+            ArrayValue arr = (ArrayValue) array;
+            if (idx < 0 || idx >= arr.getRawArray().size()) {
+                throw new RuntimeException("Index out of bounds");
+            }
+
+            arr.getRawArray().set(idx, right);
+            return right;
         }
 
-        env.assign(varName, value);
-        return value;
-    }
-
-    @Override
-    public Value visitSelfFieldAccess(FenixParser.SelfFieldAccessContext ctx) {
-        String varName = ctx.ID().getText();
-
-        Value self = env.get("self");
-        if (self == null | !(self instanceof SelfValue)) {
-            throw new RuntimeException("self outside of a struct.");
-        }
-
-        Struct s = ((SelfValue) self).getSelf();
-        Value value = s.getVariables().get(varName);
-
-        if (value == null) {
-            throw new FenixVariableNotDefinedException(varName);
-        }
-
-        return value;
+        throw new RuntimeException();//todo: exception
     }
 
     @Override
@@ -578,7 +512,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     public Value visitPostfixIncrement(FenixParser.PostfixIncrementContext ctx) {
         Value value = env.get(ctx.ID().getText());
         Value nvalue = ValueUtils.increment(value);
-        env.assign(ctx.ID().getText(), value);
+        env.assign(ctx.ID().getText(), nvalue);
 
         return nvalue;
     }
@@ -587,7 +521,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     public Value visitPostfixDecrement(FenixParser.PostfixDecrementContext ctx) {
         Value value = env.get(ctx.ID().getText());
         Value nvalue = ValueUtils.decrement(value);
-        env.assign(ctx.ID().getText(), value);
+        env.assign(ctx.ID().getText(), nvalue);
 
         return nvalue;
     }
@@ -606,7 +540,8 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             varName = assign.varDecl_typed().ID().getText();
         }
 
-        if (visit(expr).getType() != ValueType.ARRAY) {
+        Value value = visit(expr);
+        if (value.getType() != ValueType.ARRAY) {
             throw new FenixTypeException();
         }
 
@@ -619,11 +554,11 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         }
 
         try {
-            if (visit(expr).getType() != ValueType.ARRAY) {
+            if (value.getType() != ValueType.ARRAY) {
                 throw new FenixTypeException();
             }
 
-            ArrayValue array = (ArrayValue) visit(expr);
+            ArrayValue array = (ArrayValue) value;
 
             ValueType expectedType = null;
             if (assign.varDecl_typed() != null) {
@@ -639,8 +574,8 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             }
             env.define(varName, new NullValue());
             int counter = 0;
-            for (Value value : array.getRawArray()) {
-                env.assign(varName, value);
+            for (Value v : array.getRawArray()) {
+                env.assign(varName, v);
 
                 if (counterName != null) {
                     env.assign(counterName, new IntValue(counter));
@@ -786,114 +721,6 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitStructMemberCallAndObjectFunctionCall(FenixParser.StructMemberCallAndObjectFunctionCallContext ctx) {
-        Environment previousEnv = env;
-        String SVID = ctx.ID(0).getText();//structure/variable ID
-        String funcID = ctx.ID(1).getText();
-
-        if (env.variableExistsInLocalScope(SVID)) {
-            //then its: structName.function(a, b, c....);
-            List<Value> values = new ArrayList<>();
-            for (FenixParser.ExprContext arg : ctx.args().expr()) {
-                values.add(visit(arg));
-            }
-
-            DotOutput out = DotFunctionExecutor.execute(env.get(SVID), funcID, values);
-            if (out.isExecuted()) {
-                return out.value();
-            }
-
-            if (env.get(SVID).getType() != ValueType.OBJECT) {
-                throw new FenixTypeException();
-            }
-
-            ObjectValue obj = (ObjectValue) env.get(SVID);
-            if (!obj.getObject().getFunctions().containsKey(funcID)) {
-                throw new RuntimeException();//todo: fenixfunctionnotfoundexception
-            }
-
-            FenixFunction function = obj.getObject().getFunctions().get(funcID);
-            if (new HashSet<>(function.getFunctionModifiers()).contains(Modifier.LOC)) {
-                throw new FenixAccessException(funcID);
-            }
-
-            if (values.size() != function.getArgs().size()) {
-                throw new RuntimeException();//todo: error
-            }
-
-            for (int i = 0; i < values.size(); i++) {
-                if (values.get(i).getType() != function.getArgs().get(i).type()) {
-                    throw new RuntimeException();//todo: error
-                }
-            }
-
-            Environment fnEnv = new Environment(env);
-            for (int i = 0; i < values.size(); i++) {
-                fnEnv.define(function.getArgs().get(i).name(), values.get(i));
-            }
-            fnEnv.define("self", new SelfValue(((ObjectValue) env.get(SVID)).getObject()));
-
-            env = fnEnv;
-            try {
-                visit(function.getBody());
-            } catch (ReturnException exc) {
-                if (exc.getReturned().getType() != function.getReturnType()) {
-                    throw new RuntimeException();//todo: error
-                }
-                return exc.getReturned();
-            } finally {
-                env = previousEnv;
-            }
-
-            return new NullValue();
-        }
-
-        if (!env.structureExistsInLocalScope(SVID) || !env.getStruct(SVID).getFunctions().containsKey(funcID)) {
-            throw new RuntimeException();//todo: exception
-        }
-
-        FenixFunction function = env.getStruct(SVID).getFunctions().get(funcID);
-        if (!new HashSet<>(function.getFunctionModifiers()).containsAll(List.of(Modifier.PUB, Modifier.STATIC))) {
-            throw new FenixAccessException(funcID);
-        }
-
-        List<Value> values = new ArrayList<>();
-        for (FenixParser.ExprContext arg : ctx.args().expr()) {
-            values.add(visit(arg));
-        }
-
-        if (values.size() != function.getArgs().size()) {
-            throw new RuntimeException();//todo: error
-        }
-
-        for (int i = 0; i < values.size(); i++) {
-            if (values.get(i).getType() != function.getArgs().get(i).type()) {
-                throw new RuntimeException();//todo: error
-            }
-        }
-
-        Environment fnEnv = new Environment(env);
-        for (int i = 0; i < values.size(); i++) {
-            fnEnv.define(function.getArgs().get(i).name(), values.get(i));
-        }
-        fnEnv.define("self", new SelfValue(env.getStruct(SVID)));
-
-        env = fnEnv;
-        try {
-            visit(function.getBody());
-        } catch (ReturnException exc) {
-            if (exc.getReturned().getType() != function.getReturnType()) {
-                throw new RuntimeException();//todo: error
-            }
-            return exc.getReturned();
-        } finally {
-            env = previousEnv;
-        }
-
-        return new NullValue();
-    }
-
-    @Override
     public Value visitNewExpr(FenixParser.NewExprContext ctx) {
         String structName = ctx.ID().getText();
         if (!env.structureExistsInLocalScope(structName)) {
@@ -959,9 +786,126 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         Value v2 = visit(ctx.expr(1));
 
         if (v1.getType() != ValueType.NULL) {
-            return v2;
+            return v1;
         }
 
-        return new NullValue();
+        return v2;
+    }
+
+    @Override
+    public Value visitMethodCall(FenixParser.MethodCallContext ctx) {
+        Value value = visit(ctx.expr());
+        String methodName = ctx.ID().getText();
+        List<Value> args = new ArrayList<>();
+        if (ctx.args() != null) {
+            for (FenixParser.ExprContext arg : ctx.args().expr()) {
+                args.add(visit(arg));
+            }
+        }
+
+        if (methodName.equals("println")) {
+            if (args.isEmpty()) {
+                System.out.println();
+            } else {
+                System.out.println(args.get(0).asString());
+            }
+            return new NullValue();
+        } else if (methodName.equals("typeof")) {
+            if (args.isEmpty()) {
+                throw new RuntimeException();
+            }
+            return new StringValue(args.get(0).getType().name());
+        }
+
+        DotOutput out = DotFunctionExecutor.execute(value, methodName, args);
+        if (out.isExecuted()) {
+            return out.value();
+        }
+
+        if (value instanceof ObjectValue) {
+            ObjectValue obj = (ObjectValue) value;
+            Struct struct = obj.getObject();
+            if (!struct.getFunctions().containsKey(methodName)) {
+                throw new RuntimeException();//todo: exception
+            }
+
+            FenixFunction func = struct.getFunctions().get(methodName);
+
+            Environment prevEnv = env;
+            Environment fnEnv = new Environment(env);
+            for (int i = 0; i < args.size(); i++) {
+                RawArg expected = func.getArgs().get(i);
+                if (args.get(i).getType() != expected.type()) {
+                    throw new FenixTypeException();//todo: exception(special)
+                }
+                fnEnv.define(expected.name(), args.get(i));
+            }
+            fnEnv.define("self", new SelfValue(struct));
+
+            env = fnEnv;
+            try {
+                visit(func.getBody());
+            } catch (ReturnException e) {
+                if (e.getReturned().getType() != func.getReturnType()) {
+                    throw new FenixTypeException();
+                }
+                return e.getReturned();
+            } finally {
+                env = prevEnv;
+            }
+            return new NullValue();
+        }
+
+        throw new FenixTypeException();
+    }
+
+    @Override
+    public Value visitIndexAccess(FenixParser.IndexAccessContext ctx) {
+        Value array = visit(ctx.expr(0));
+        Value idx = visit(ctx.expr(1));
+
+        if (idx.getType() != ValueType.INT) {
+            throw new FenixTypeException();
+        }
+
+        int index = idx.asInt();
+        if (!(array instanceof ArrayValue)) {
+            throw new FenixTypeException();
+        }
+
+        ArrayValue arr = (ArrayValue) array;
+        if (index < 0 || index >= arr.getRawArray().size()) {
+            throw new RuntimeException("Index out of bounds");
+        }
+
+        return arr.get(index);
+    }
+
+    @Override
+    public Value visitFieldAccess(FenixParser.FieldAccessContext ctx) {
+        Value value = visit(ctx.expr());
+        String fieldName = ctx.ID().getText();
+
+        if (value instanceof ObjectValue) {
+            ObjectValue obj = (ObjectValue) value;
+            Value field = obj.getObject().getVariables().get(fieldName);
+            if (field == null) {
+                throw new FenixVariableNotDefinedException(fieldName);
+            }
+
+            return field;
+        }
+
+        if (value instanceof SelfValue) {
+            Struct s = ((SelfValue) value).getSelf();
+            Value field = s.getVariables().get(fieldName);
+            if (field == null) {
+                throw new FenixVariableNotDefinedException(fieldName);
+            }
+
+            return field;
+        }
+
+        throw new FenixTypeException();
     }
 }
