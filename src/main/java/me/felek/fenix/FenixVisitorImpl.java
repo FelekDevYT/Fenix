@@ -903,4 +903,16 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             return new BoolValue(true);
         }
     }
+
+    @Override
+    public Value visitElvis(FenixParser.ElvisContext ctx) {
+        Value v1 = visit(ctx.expr(0));
+        Value v2 = visit(ctx.expr(1));
+
+        if (v1.getType() != ValueType.NULL) {
+            return v2;
+        }
+
+        return new NullValue();
+    }
 }

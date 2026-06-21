@@ -83,6 +83,7 @@ expr:
     | expr op=('+' | '-') expr #AddSub//implemented
     | expr op=('>' | '>=' | '<=' | '<') expr #Comparsion//implemented
     | expr op=('==' | '!=') expr #Equality//implemented
+    | expr '?:' expr #Elvis//todo: more nulleable operators
     | 'new' ID '(' ')' #NewExpr
     | expr '?' expr ':' expr #Ternary
     | expr '&&' expr #And//implemented
