@@ -15,8 +15,7 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                auto arr = [[1, 2], [3, 4], [5, 6]];
-                println(arr[2][0]);
+                println(50 >> 2);
                 """;
         String preprocessed = Preprocessor.preprocess(sourceCode);
 

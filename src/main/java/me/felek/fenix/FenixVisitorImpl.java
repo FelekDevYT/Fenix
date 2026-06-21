@@ -856,4 +856,40 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
         return obj;
     }
+
+    @Override
+    public Value visitBitwiseAnd(FenixParser.BitwiseAndContext ctx) {
+        if (visit(ctx.expr(0)).getType() != ValueType.INT || visit(ctx.expr(1)).getType() != ValueType.INT) {
+            throw new FenixTypeException();
+        }
+
+        return new IntValue(visit(ctx.expr(0)).asInt() & visit(ctx.expr(1)).asInt());
+    }
+
+    @Override
+    public Value visitBitwiseOr(FenixParser.BitwiseOrContext ctx) {
+        if (visit(ctx.expr(0)).getType() != ValueType.INT || visit(ctx.expr(1)).getType() != ValueType.INT) {
+            throw new FenixTypeException();
+        }
+
+        return new IntValue(visit(ctx.expr(0)).asInt() | visit(ctx.expr(1)).asInt());
+    }
+
+    @Override
+    public Value visitBitwiseLeft(FenixParser.BitwiseLeftContext ctx) {
+        if (visit(ctx.expr(0)).getType() != ValueType.INT || visit(ctx.expr(1)).getType() != ValueType.INT) {
+            throw new FenixTypeException();
+        }
+
+        return new IntValue(visit(ctx.expr(0)).asInt() << visit(ctx.expr(1)).asInt());
+    }
+
+    @Override
+    public Value visitBitwiseRight(FenixParser.BitwiseRightContext ctx) {
+        if (visit(ctx.expr(0)).getType() != ValueType.INT || visit(ctx.expr(1)).getType() != ValueType.INT) {
+            throw new FenixTypeException();
+        }
+
+        return new IntValue(visit(ctx.expr(0)).asInt() >> visit(ctx.expr(1)).asInt());
+    }
 }

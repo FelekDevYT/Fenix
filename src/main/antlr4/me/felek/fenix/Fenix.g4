@@ -75,6 +75,10 @@ expr:
     | ID '++' #PostfixIncrement
     | ID '--' #PostfixDecrement
     | expr '^' expr #Pow//implemented
+    | expr '&' expr #BitwiseAnd
+    | expr '|' expr #BitwiseOr
+    | expr '<<' expr #BitwiseLeft
+    | expr '>>' expr #BitwiseRight
     | expr op=('/' | '*' | '%') expr #MulDiv//implemented
     | expr op=('+' | '-') expr #AddSub//implemented
     | expr op=('>' | '>=' | '<=' | '<') expr #Comparsion//implemented
