@@ -610,20 +610,53 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             throw new FenixTypeException();
         }
 
-        ArrayValue array = (ArrayValue) visit(expr);
-        if (!array.getRawArray().isEmpty() && array.get(0).getType() != visit(assign).getType()) {
-            throw new FenixTypeException();
+        Environment prev = env;
+        env = new Environment(env);
+
+        String counterName = null;
+        if (ctx.index != null) {
+            counterName = ctx.index.getText();
         }
 
-        for (Value value : array.getRawArray()) {
-            env.assign(varName, value);
-            try {
-                visit(sttmt);
-            } catch (BreakException be) {
-                break;
-            } catch (ContinueException ce) {
-                continue;
+        try {
+            if (visit(expr).getType() != ValueType.ARRAY) {
+                throw new FenixTypeException();
             }
+
+            ArrayValue array = (ArrayValue) visit(expr);
+
+            ValueType expectedType = null;
+            if (assign.varDecl_typed() != null) {
+                expectedType = TypeUtils.getTypeFromString(assign.varDecl_typed().TYPE().getText().replace("[]", ""));
+            }
+
+            if (expectedType != null && !array.getRawArray().isEmpty() && array.get(0).getType() != expectedType) {
+                throw new FenixTypeException();
+            }
+
+            if (counterName != null){
+                env.define(counterName, new IntValue(0));
+            }
+            env.define(varName, new NullValue());
+            int counter = 0;
+            for (Value value : array.getRawArray()) {
+                env.assign(varName, value);
+
+                if (counterName != null) {
+                    env.assign(counterName, new IntValue(counter));
+                }
+                try {
+                    visit(sttmt);
+                } catch (BreakException be) {
+                    break;
+                } catch (ContinueException ce) {
+                    counter++;
+                    continue;
+                }
+                counter++;
+            }
+        } finally {
+            env = prev;
         }
 
         return new NullValue();

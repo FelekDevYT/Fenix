@@ -15,7 +15,11 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                println(0..10..2);
+                auto collection = 0..10..2;
+                println(collection);
+                for (i, var el: Int in collection) {
+                    println(i + ", " + el);
+                }
                 """;
         String preprocessed = Preprocessor.preprocess(sourceCode);
 

@@ -60,7 +60,7 @@ forInit: varDecl_noSemi;
 forCondition: expr;
 forIncrement: expr;
 
-forEachStatement: FOR_WORD '(' varDecl_noSemi IN_WORD expr ')' statement;
+forEachStatement: FOR_WORD '(' (index=ID ',')? varDecl_noSemi IN_WORD expr ')' statement;
 
 returnStatement: RETURN_WORD expr? ';';
 breakStatement: BREAK_WORD ';';
