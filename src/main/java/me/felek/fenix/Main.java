@@ -15,11 +15,8 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                println(\"""
-                hello
-                world
-                !
-                \""");
+                auto arr = [[1, 2], [3, 4], [5, 6]];
+                println(arr[2][0]);
                 """;
         String preprocessed = Preprocessor.preprocess(sourceCode);
 

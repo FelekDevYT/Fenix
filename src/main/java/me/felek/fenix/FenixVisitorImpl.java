@@ -154,28 +154,31 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     @Override
     public Value visitArrayAccess(FenixParser.ArrayAccessContext ctx) {
         String name = ctx.ID().getText();
-        Value value = visit(ctx.expr());
+        Value rawArray = env.get(name);
 
-        if (value.getType() == ValueType.INT) {
-            int index = value.asInt();
-
-            Value rawArray = env.get(name);
-            if (rawArray == null) {
-                throw new FenixVariableNotDefinedException(name);//todo: exception
-            }
-
-            if (!(rawArray instanceof ArrayValue)) {
-                throw new RuntimeException();
-            }
-            ArrayValue array = (ArrayValue) rawArray;
-            if (array.getRawArray().size() <= index) {
-                throw new RuntimeException();//todo: exception
-            }
-
-            return array.get(index);
-        } else {
-            throw new RuntimeException();//todo: exception here
+        if (rawArray == null) {
+            throw new FenixVariableNotDefinedException(name);
         }
+
+        Value currentArray = rawArray;
+        for (FenixParser.ExprContext exprCtx : ctx.expr()) {
+            Value indexValue = visit(exprCtx);
+            if (indexValue.getType() != ValueType.INT) {
+                throw new FenixTypeException();
+            }
+            int index = indexValue.asInt();
+
+            if (!(currentArray instanceof ArrayValue)) {
+                throw new FenixTypeException();
+            }
+            ArrayValue array = (ArrayValue) currentArray;
+            if (index < 0 || array.getRawArray().size() <= index) {
+                throw new RuntimeException("index of bouns exception");//todo: exception
+            }
+            currentArray = array.get(index);
+        }
+
+        return currentArray;
     }
 
     @Override
@@ -185,6 +188,8 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         if (ctx.ID().getText().equals("println")) {
             System.out.println(visit(ctx.args().expr(0)).asString());
             return new NullValue();
+        } else if (ctx.ID().getText().equals("typeof")) {
+            return new StringValue(visit(ctx.args().expr(0)).getType().name());
         }
         FenixFunction function = env.getFunction(ctx.ID().getText());
         List<Value> values = new ArrayList<>();
@@ -352,17 +357,57 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     @Override
     public Value visitAssignmentStatement(FenixParser.AssignmentStatementContext ctx) {
         String varName = ctx.ID().getText();
-        Value value = new NullValue();
+        boolean isArray = ctx.arrayAccessHelper() != null;
 
-        if (ctx.arr != null) {
-            varName = ctx.arr.getText();
-            int i = visit(ctx.expr(0)).asInt();
-            value = visit(ctx.expr(1));
+        if (isArray) {
+            varName = ctx.arrayAccessHelper().arr.getText();
+        }
 
-            env.assignArray(varName, i, value);
+        Value value = visit(ctx.expr());
+
+        if (isArray) {
+            List<FenixParser.ExprContext> exprs = ctx.arrayAccessHelper().expr();
+
+            Value rawArray = null;
+            if (ctx.SELF_WORD() != null) {
+                Value self = env.get("self");
+                if (self == null || !(self instanceof SelfValue)) {
+                    throw new RuntimeException("Self outside a struct.");
+                }
+
+                ((SelfValue) self).getSelf().getVariables().get(varName);
+            } else {
+                rawArray = env.get(varName);
+            }
+
+            if (rawArray == null) {
+                throw new FenixVariableNotDefinedException(varName);
+            }
+
+            Value currentArray = rawArray;
+            for (int i = 0; i < exprs.size()-1; i++) {
+                int idx = visit(exprs.get(i)).asInt();
+                if (!(currentArray instanceof ArrayValue)) {
+                    throw new RuntimeException();//todo: exception
+                }
+                ArrayValue arr = (ArrayValue) currentArray;
+                if (idx < 0 || arr.getRawArray().size() <= idx) {
+                    throw new RuntimeException("Index out of bounds");
+                }
+                currentArray = arr.get(idx);
+            }
+
+            int lastIdx = visit(exprs.get(exprs.size() - 1)).asInt();
+            if (!(currentArray instanceof ArrayValue)) {
+                throw new RuntimeException();//todo: exception
+            }
+            ArrayValue arr = (ArrayValue) currentArray;
+            if (lastIdx < 0 || arr.getRawArray().size() <= lastIdx) {
+                throw new RuntimeException("index out of bounds");//todo: excpetion
+            }
+
+            arr.getRawArray().set(lastIdx, value);
             return value;
-        } else {
-            value = visit(ctx.expr(0));
         }
 
         if (ctx.SELF_WORD() != null) {

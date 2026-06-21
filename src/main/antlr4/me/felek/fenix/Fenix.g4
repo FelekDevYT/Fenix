@@ -48,7 +48,8 @@ varDecl_typed: VAR_WORD ID ':' TYPE ('=' value=expr)?;
 varDecl_auto: AUTO_WORD ID ('=' value=expr)?;
 
 funcDecl: functionTemplate statement;//todo: parameters should have own type!
-assignmentStatement: (SELF_WORD '.')? (ID | arr=ID '[' expr ']') '=' expr ';';//todo: add arrays
+assignmentStatement: (SELF_WORD '.')? (ID | arrayAccessHelper) '=' expr ';';
+arrayAccessHelper: arr=ID ('[' expr ']')*;
 
 doWhileStatement: DO_WORD statement WHILE_WORD '(' expr ')' ';';
 
@@ -84,7 +85,7 @@ expr:
     | expr '||' expr #Or//implemented
     | expr '~' expr #Xor//implemented
     | '[' args? ']' #Array
-    | ID '[' expr ']' #ArrayAccess
+    | ID ('[' expr ']')+ #ArrayAccess
     //todo: selfMethodCall
     | SELF_WORD '.' ID #SelfFieldAccess
     | ID '.' ID '(' args? ')' #StructMemberCallAndObjectFunctionCall
@@ -101,7 +102,7 @@ expr:
 
 args: expr (',' expr)*;
 rawArgs: arg (',' arg)*;
-arg: ID ':' TYPE;//a: Int       q
+arg: ID ':' TYPE;//a: Int
 
 RETURN_WORD: 'return';
 BREAK_WORD: 'break';
@@ -113,7 +114,7 @@ VAR_WORD: 'var'; AUTO_WORD: 'auto';
 FUNC_WORD: 'func';
 SELF_WORD: 'self'; STRUCT_WORD: 'struct';
 
-MODIFIER: 'pub' | 'static' | 'loc';//todo: add this
+MODIFIER: 'pub' | 'static' | 'loc';
 
 TYPE: ('Int' | 'String' | 'Float' | 'Bool' | 'Null' | 'Obj') ('[' ']')*;
 
