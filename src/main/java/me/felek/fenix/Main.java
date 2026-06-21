@@ -15,7 +15,7 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                println(1_000_178);
+                println(0..10..2);
                 """;
         String preprocessed = Preprocessor.preprocess(sourceCode);
 

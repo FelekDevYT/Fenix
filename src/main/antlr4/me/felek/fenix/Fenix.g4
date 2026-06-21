@@ -96,7 +96,7 @@ expr:
     | SELF_WORD '.' ID #SelfFieldAccess
     | ID '.' ID '(' args? ')' #StructMemberCallAndObjectFunctionCall
     | ID '(' args? ')' #Call//implemented
-    | expr '..' expr #Range
+    | expr '..' expr (step='..' expr) #Range
     // todo struct field access
     | INT #Int//implemented
     | FLOAT #Float//implemented

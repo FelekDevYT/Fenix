@@ -651,8 +651,15 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     public Value visitRange(FenixParser.RangeContext ctx) {
         int v1 = visit(ctx.expr(0)).asInt();
         int v2 = visit(ctx.expr(1)).asInt();
+
         List<Value> valueArray = new ArrayList<>();
-        IntStream.rangeClosed(v1, v2).forEach((el) -> valueArray.add(new IntValue(el)));
+        if (ctx.step != null) {
+            for (int i = v1; i < v2; i+=visit(ctx.expr(2)).asInt()) {
+                valueArray.add(new IntValue(i));
+            }
+        } else {
+            IntStream.rangeClosed(v1, v2).forEach((el) -> valueArray.add(new IntValue(el)));
+        }
 
         return new ArrayValue(valueArray);
     }
