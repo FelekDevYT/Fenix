@@ -88,6 +88,7 @@ expr:
     | expr '&&' expr #And//implemented
     | expr '||' expr #Or//implemented
     | expr '~' expr #Xor//implemented
+    | expr IS_WORD TYPE #Is
     | '[' args? ']' #Array
     | ID ('[' expr ']')+ #ArrayAccess
     //todo: selfMethodCall
@@ -117,6 +118,7 @@ IF_WORD: 'if'; ELSE_WORD: 'else'; ELIF_WORD: 'elif';
 VAR_WORD: 'var'; AUTO_WORD: 'auto';
 FUNC_WORD: 'func';
 SELF_WORD: 'self'; STRUCT_WORD: 'struct';
+IS_WORD: 'is';
 
 MODIFIER: 'pub' | 'static' | 'loc';
 

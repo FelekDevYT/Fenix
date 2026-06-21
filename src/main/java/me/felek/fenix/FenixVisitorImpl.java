@@ -892,4 +892,15 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
         return new IntValue(visit(ctx.expr(0)).asInt() >> visit(ctx.expr(1)).asInt());
     }
+
+    @Override
+    public Value visitIs(FenixParser.IsContext ctx) {
+        ValueType type = TypeUtils.getTypeFromString(ctx.TYPE().getText());
+
+        if (type != visit(ctx.expr()).getType()) {
+            return new BoolValue(false);
+        } else {
+            return new BoolValue(true);
+        }
+    }
 }

@@ -15,7 +15,7 @@ import java.util.Scanner;
 public class Main {
     public static void main(String[] args) {
         String sourceCode = """
-                println(50 >> 2);
+                println(5 is Int);
                 """;
         String preprocessed = Preprocessor.preprocess(sourceCode);
 
