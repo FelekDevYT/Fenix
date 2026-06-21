@@ -125,7 +125,13 @@ MODIFIER: 'pub' | 'static' | 'loc';
 
 TYPE: ('Int' | 'String' | 'Float' | 'Bool' | 'Null' | 'Obj') ('[' ']')*;
 
-INT: [0-9]+;
+INT: [0-9]+ //dec
+    | '0x' [0-9a-fA-F]+ //hex
+    | '0b' [01]+ //binary
+    | '0o' [0-7]+ //oct
+    | [0-9]+ '_' [0-9_]* //1_0_0
+    ;
+
 FLOAT: [0-9]+ '.' [0-9]+;
 STRING: '"' (~["\\"] | '\\' .)* '"' | '"""' ('"'? ~["\\"] | '\\' .)* '"""';
 BOOL: 'true' | 'false';

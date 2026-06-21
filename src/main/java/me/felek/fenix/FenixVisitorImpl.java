@@ -120,6 +120,15 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
     @Override
     public Value visitInt(FenixParser.IntContext ctx) {
+        if (ctx.INT().getText().startsWith("0x")) {
+            return new IntValue(Integer.parseInt(ctx.INT().getText().substring(2), 16));
+        } else if (ctx.INT().getText().startsWith("0o")) {
+            return new IntValue(Integer.parseInt(ctx.INT().getText().substring(2), 8));
+        } else if (ctx.INT().getText().startsWith("0b")) {
+            return new IntValue(Integer.parseInt(ctx.INT().getText().substring(2), 2));
+        } else if (ctx.INT().getText().contains("_")) {
+            return new IntValue(Integer.parseInt(ctx.INT().getText().replaceAll("_", "")));
+        }
         return new IntValue(Integer.parseInt(ctx.INT().getText()));
     }
 
