@@ -68,45 +68,40 @@ exprStatement: expr ';';
 block: '{' statement* '}';
 
 expr:
-    '-' expr #Negative
-    | '!' expr #Not//implemented
-    | '(' expr ')' #Parens//implemented
-    | ID '++' #PostfixIncrement
-    | ID '--' #PostfixDecrement
-    | expr '^' expr #Pow//implemented
-    | expr '&' expr #BitwiseAnd
-    | expr '|' expr #BitwiseOr
+     '(' expr ')' #Parens
+    | INT #Int
+    | FLOAT #Float
+    | STRING #String
+    | BOOL #Bool
+    | NULL #Null
+    | ID #Var
+    | '-' expr #Negative
+    | '!' expr #Not
+    | expr '.' ID '(' args? ')' #MethodCall
+    | expr '.' ID #FieldAccess
+    | expr '[' expr ']' #IndexAccess
+    | expr '(' args? ')' #Call
+    | expr '++' #PostfixIncrement
+    | expr '--' #PostfixDecrement
+    | 'new' ID '(' ')' #NewExpr
+    | expr '^' expr #Pow
+    | expr op=('/' | '*' | '%') expr #MulDiv
+    | expr op=('+' | '-') expr #AddSub
     | expr '<<' expr #BitwiseLeft
     | expr '>>' expr #BitwiseRight
-    | expr op=('/' | '*' | '%') expr #MulDiv//implemented
-    | expr op=('+' | '-') expr #AddSub//implemented
-    | expr op=('>' | '>=' | '<=' | '<') expr #Comparsion//implemented
-    | expr op=('==' | '!=') expr #Equality//implemented
-    | expr '?:' expr #Elvis//todo: more nulleable operators
-    | 'new' ID '(' ')' #NewExpr
-    | expr '?' expr ':' expr #Ternary
-    | expr '&&' expr #And//implemented
-    | expr '||' expr #Or//implemented
-    | expr '~' expr #Xor//implemented
+    | expr '&' expr #BitwiseAnd
+    | expr '|' expr #BitwiseOr
+    | expr '~' expr #Xor
+    | expr op=('>' | '>=' | '<=' | '<') expr #Comparsion
+    | expr op=('==' | '!=') expr #Equality
     | expr IS_WORD TYPE #Is
+    | expr '?:' expr #Elvis
+    | expr '&&' expr #And
+    | expr '||' expr #Or
+    | expr '?' expr ':' expr #Ternary
+    | expr '..' expr (step='..' expr)? #Range
+
     | '[' args? ']' #Array
-    //REMOVED
-//    | ID ('[' expr ']')+ #ArrayAccess
-//    //todo: selfMethodCall
-//    | SELF_WORD '.' ID #SelfFieldAccess
-//    | ID '.' ID '(' args? ')' #StructMemberCallAndObjectFunctionCall
-    | expr '.' ID #FieldAccess
-    | expr '.' ID '(' args? ')' #MethodCall
-    | expr '[' expr ']' #IndexAccess
-    | ID '(' args? ')' #Call//implemented
-    | expr '..' expr (step='..' expr) #Range
-    // todo struct field access
-    | INT #Int//implemented
-    | FLOAT #Float//implemented
-    | STRING #String//implemented
-    | BOOL #Bool//implemented
-    | ID #Var//implemented
-    | NULL #Null//implemented
     ;
 
 args: expr (',' expr)*;

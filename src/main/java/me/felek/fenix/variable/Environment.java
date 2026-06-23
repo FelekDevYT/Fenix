@@ -45,8 +45,14 @@ public class Environment {
         throw new FenixStructureDoesNotExistsException(name);
     }
 
-    public boolean structureExistsInLocalScope(String name) {
-        return structs.containsKey(name);
+    public boolean structureExists(String name) {
+        if (structs.containsKey(name)) {
+            return true;
+        }
+        if (parent != null) {
+            return parent.structureExists(name);
+        }
+        return false;
     }
     public boolean variableExistsInLocalScope(String name) {
         return localVariables.containsKey(name);
@@ -85,7 +91,13 @@ public class Environment {
     }
 
     public FenixFunction getFunction(String name) {
-        return functions.get(name);//todo: check if not defined
+        if (functions.containsKey(name)) {
+            return functions.get(name);
+        }
+        if (parent != null) {
+            return parent.getFunction(name);
+        }
+        throw new RuntimeException("Founction not found");
     }
 
     public void assignArray(String arrName, int idx, Value value) {

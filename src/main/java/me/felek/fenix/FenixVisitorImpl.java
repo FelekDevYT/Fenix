@@ -1,6 +1,5 @@
 package me.felek.fenix;
 
-import me.felek.fenix.exceptions.FenixAccessException;
 import me.felek.fenix.exceptions.FenixInvalidVariableTypeException;
 import me.felek.fenix.exceptions.FenixStructureDoesNotExistsException;
 import me.felek.fenix.exceptions.FenixTypeException;
@@ -23,13 +22,8 @@ import me.felek.fenix.utils.TypeUtils;
 import me.felek.fenix.utils.ValueUtils;
 import me.felek.fenix.variable.Environment;
 
-import java.lang.reflect.Member;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.IntStream;
 
 public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
@@ -165,31 +159,56 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     public Value visitCall(FenixParser.CallContext ctx) {
         Environment previousEnv = env;
 
-        if (ctx.ID().getText().equals("println")) {
-            System.out.println(visit(ctx.args().expr(0)).asString());
+        String funcName = null;
+        if (ctx.expr() instanceof FenixParser.VarContext) {
+            funcName = ((FenixParser.VarContext) ctx.expr()).ID().getText();
+        }
+
+        List<Value> args = new ArrayList<>();
+        if (ctx.args() != null) {
+            for (FenixParser.ExprContext arg : ctx.args().expr()) {
+                args.add(visit(arg));
+            }
+        }
+
+        if ("println".equals(funcName)) {
+            System.out.println(args.get(0).asString());
             return new NullValue();
-        } else if (ctx.ID().getText().equals("typeof")) {
-            return new StringValue(visit(ctx.args().expr(0)).getType().name());
-        }
-        FenixFunction function = env.getFunction(ctx.ID().getText());
-        List<Value> values = new ArrayList<>();
-        for (FenixParser.ExprContext arg : ctx.args().expr()) {
-            values.add(visit(arg));
+        } else if ("typeof".equals(funcName)) {
+            return new StringValue(args.get(0).getType().name());
         }
 
-        if (values.size() != function.getArgs().size()) {
-            throw new RuntimeException();//todo: error
+        FenixFunction function = null;
+        if (funcName != null) {
+            try {
+                function = env.getFunction(funcName);
+            } catch (Exception e) {
+                //function not found
+                //try to use as expr;
+            }
         }
 
-        for (int i = 0; i < values.size(); i++) {
-            if (values.get(i).getType() != function.getArgs().get(i).type()) {
-                throw new RuntimeException();//todo: error
+        if (function == null && funcName == null) {
+            throw new RuntimeException("Cant call not-func expression");//todo:exception
+        }
+
+        if (function == null) {
+            throw new RuntimeException("Function not found");
+        }
+
+        if (args.size() != function.getArgs().size()) {
+            throw new RuntimeException("invalid count of args");
+        }
+
+        for (int i = 0; i < args.size(); i++) {
+            if (args.get(i).getType() != function.getArgs().get(i).type()) {
+                throw new FenixTypeException();
             }
         }
 
         Environment fnEnv = new Environment(env);
-        for (int i = 0; i < values.size(); i++) {
-            fnEnv.define(function.getArgs().get(i).name(), values.get(i));
+        for (int i = 0; i < args.size(); i++) {
+            fnEnv.define(function.getArgs().get(i).name(), args.get(i));
         }
 
         env = fnEnv;
@@ -197,7 +216,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
             visit(function.getBody());
         } catch (ReturnException exc) {
             if (exc.getReturned().getType() != function.getReturnType()) {
-                throw new RuntimeException();//todo: error
+                throw new FenixTypeException();
             }
             return exc.getReturned();
         } finally {
@@ -229,7 +248,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
                 value = new IntValue(0);//todo: not good idea
             }
 
-            if (value.getType() != type) {
+            if (value.getType() != ValueType.NULL && value.getType() != type) {
                 throw new FenixInvalidVariableTypeException(varName, value.getType().name());
             }
 
@@ -237,23 +256,19 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
 
             return value;
         } else {
-            int dimensions = 0;
-            for (char ch : ctx.TYPE().getText().toCharArray()) {
-                if (ch == '[') {
-                    dimensions++;
-                }
-            }
-
-            ArrayValue array = new ArrayValue(new ArrayList<>());
             if (ctx.value != null) {
                 Value val = visit(ctx.value);
                 if (val.getType() == ValueType.ARRAY) {
-                    array.merge((ArrayValue) val);
+                    env.define(varName, val);
+                    return val;
+                } else {
+                    throw new FenixInvalidVariableTypeException(varName, val.getType().name());
                 }
+            } else {
+                ArrayValue array = new ArrayValue(new ArrayList<>());
+                env.define(varName, array);
+                return array;
             }
-            env.define(varName, array);
-
-            return array;
         }
     }
 
@@ -393,33 +408,40 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         FenixParser.ForConditionContext forCondition = ctx.forCondition();
         FenixParser.ForIncrementContext forIncrement = ctx.forIncrement();
 
+        Environment prev = env;
+        env = new Environment(env);
+
         if (forInit != null) {
             visit(forInit);
         }
 
-        while (true) {
-            if (forCondition != null) {
-                if (!visit(forCondition).asBool()) {
-                    break;
-                }
-            }
-
-            if (ctx.statement() != null) {
-                try {
-                    visit(ctx.statement());
-                } catch (BreakException be) {
-                    break;
-                } catch (ContinueException ce) {
-                    if (forIncrement != null) {
-                        visit(forIncrement);
+        try {
+            while (true) {
+                if (forCondition != null) {
+                    if (!visit(forCondition).asBool()) {
+                        break;
                     }
-                    continue;
+                }
+
+                if (ctx.statement() != null) {
+                    try {
+                        visit(ctx.statement());
+                    } catch (BreakException be) {
+                        break;
+                    } catch (ContinueException ce) {
+                        if (forIncrement != null) {
+                            visit(forIncrement);
+                        }
+                        continue;
+                    }
+                }
+
+                if (forIncrement != null) {
+                    visit(forIncrement);
                 }
             }
-
-            if (forIncrement != null) {
-                visit(forIncrement);
-            }
+        } finally {
+            env = prev;
         }
 
         return new NullValue();
@@ -462,8 +484,12 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         }
 
         List<RawArg> arguments = new ArrayList<>();
-        for (var arg : rawArgs.arg()) {
-            arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+        if (rawArgs != null) {
+            {
+                for (var arg : rawArgs.arg()) {
+                    arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+                }
+            }
         }
 
         env.defineFunction(name, new FenixFunction(name, arguments, block, returnType));
@@ -498,32 +524,96 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     @Override
     public Value visitArray(FenixParser.ArrayContext ctx) {
         ArrayValue array = new ArrayValue(List.of());
-
         if (ctx.args() != null) {
             for (var v : ctx.args().expr()) {
                 array.addValue(visit(v));
             }
         }
-
         return array;
     }
 
     @Override
     public Value visitPostfixIncrement(FenixParser.PostfixIncrementContext ctx) {
-        Value value = env.get(ctx.ID().getText());
-        Value nvalue = ValueUtils.increment(value);
-        env.assign(ctx.ID().getText(), nvalue);
+        FenixParser.ExprContext expr = ctx.expr();
+        Value oldValue = visit(expr);
+        Value nvalue = ValueUtils.increment(oldValue);
 
-        return nvalue;
+        if (expr instanceof FenixParser.VarContext) {
+            String varName = ((FenixParser.VarContext) expr).ID().getText();
+            env.assign(varName, nvalue);
+        } else if (expr instanceof FenixParser.FieldAccessContext) {
+            FenixParser.FieldAccessContext access = (FenixParser.FieldAccessContext) expr;
+            Value v = visit(access.expr());
+            String fieldName = access.ID().getText();
+
+            if (v instanceof ObjectValue) {
+                ((ObjectValue) v).getObject().getVariables().put(fieldName, nvalue);
+            } else if (v instanceof SelfValue) {
+                ((SelfValue) v).getSelf().getVariables().put(fieldName, nvalue);
+            } else {
+                throw new FenixTypeException();
+            }
+        } else if (expr instanceof FenixParser.IndexAccessContext) {
+            FenixParser.IndexAccessContext access = (FenixParser.IndexAccessContext) expr;
+            Value array = visit(access.expr(0));
+            int index = visit(access.expr(1)).asInt();
+            if (!(array instanceof ArrayValue)) {
+                throw new FenixTypeException();
+            }
+
+            ArrayValue arr = (ArrayValue) array;
+            if (index < 0 || index >= arr.getRawArray().size()) {
+                throw new RuntimeException("Index out of bounds");
+            }
+
+            arr.getRawArray().set(index, nvalue);
+        } else {
+            throw new FenixTypeException();
+        }
+
+        return oldValue;
     }
 
     @Override
     public Value visitPostfixDecrement(FenixParser.PostfixDecrementContext ctx) {
-        Value value = env.get(ctx.ID().getText());
-        Value nvalue = ValueUtils.decrement(value);
-        env.assign(ctx.ID().getText(), nvalue);
+        FenixParser.ExprContext expr = ctx.expr();
+        Value oldValue = visit(expr);
+        Value nvalue = ValueUtils.decrement(oldValue);
 
-        return nvalue;
+        if (expr instanceof FenixParser.VarContext) {
+            String varName = ((FenixParser.VarContext) expr).ID().getText();
+            env.assign(varName, nvalue);
+        } else if (expr instanceof FenixParser.FieldAccessContext) {
+            FenixParser.FieldAccessContext access = (FenixParser.FieldAccessContext) expr;
+            Value v = visit(access.expr());
+            String fieldName = access.ID().getText();
+
+            if (v instanceof ObjectValue) {
+                ((ObjectValue) v).getObject().getVariables().put(fieldName, nvalue);
+            } else if (v instanceof SelfValue) {
+                ((SelfValue) v).getSelf().getVariables().put(fieldName, nvalue);
+            } else {
+                throw new FenixTypeException();
+            }
+        } else if (expr instanceof FenixParser.IndexAccessContext) {
+            FenixParser.IndexAccessContext access = (FenixParser.IndexAccessContext) expr;
+            Value array = visit(access.expr(0));
+            int index = visit(access.expr(1)).asInt();
+            if (!(array instanceof ArrayValue)) {
+                throw new FenixTypeException();
+            }
+
+            ArrayValue arr = (ArrayValue) array;
+            if (index < 0 || index >= arr.getRawArray().size()) {
+                throw new RuntimeException("Index out of bounds");
+            }
+
+            arr.getRawArray().set(index, nvalue);
+        } else {
+            throw new FenixTypeException();
+        }
+
+        return oldValue;
     }
 
     @Override
@@ -565,8 +655,13 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
                 expectedType = TypeUtils.getTypeFromString(assign.varDecl_typed().TYPE().getText().replace("[]", ""));
             }
 
-            if (expectedType != null && !array.getRawArray().isEmpty() && array.get(0).getType() != expectedType) {
-                throw new FenixTypeException();
+            if (expectedType != null && !array.getRawArray().isEmpty()) {
+                String typeStr = assign.varDecl_typed().TYPE().getText();
+                if (!typeStr.contains("[]")) {
+                    if (array.get(0).getType() != expectedType) {
+                        throw new FenixTypeException();
+                    }
+                }
             }
 
             if (counterName != null){
@@ -635,7 +730,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     @Override
     public Value visitStructDeclaration(FenixParser.StructDeclarationContext ctx) {
         String name = ctx.ID().getText();
-        if (env.structureExistsInLocalScope(name)) {
+        if (env.structureExists(name)) {
             throw new RuntimeException();//todo: exception
         }
 
@@ -662,8 +757,10 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
                     String functionName = member.functionTemplate().ID().getText();
 
                     List<RawArg> arguments = new ArrayList<>();
-                    for (var arg : member.functionTemplate().rawArgs().arg()) {
-                        arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+                    if (member.functionTemplate().rawArgs() != null){
+                        for (var arg : member.functionTemplate().rawArgs().arg()) {
+                            arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+                        }
                     }
 
                     ValueType type = ValueType.NULL;
@@ -702,8 +799,10 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
         }
 
         List<RawArg> arguments = new ArrayList<>();
-        for (var arg : ctx.rawArgs().arg()) {
-            arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+        if (ctx.rawArgs() != null) {
+            for (var arg : ctx.rawArgs().arg()) {
+                arguments.add(new RawArg(arg.ID().getText(), TypeUtils.getTypeFromString(arg.TYPE().getText())));
+            }
         }
 
         ValueType type = ValueType.NULL;
@@ -723,7 +822,7 @@ public class FenixVisitorImpl extends FenixBaseVisitor<Value> {
     @Override
     public Value visitNewExpr(FenixParser.NewExprContext ctx) {
         String structName = ctx.ID().getText();
-        if (!env.structureExistsInLocalScope(structName)) {
+        if (!env.structureExists(structName)) {
             throw new FenixStructureDoesNotExistsException(structName);
         }
 
